@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import Photos
 
 struct PolaroidPhotoView: View {
     @StateObject private var viewModel: PolaroidPhotoViewModel = PolaroidPhotoViewModel()
@@ -19,17 +20,36 @@ struct PolaroidPhotoView: View {
                 Text("Pick a photo")
             }
 
-            if viewModel.selectedPhoto != nil {
-                Image(uiImage: viewModel.selectedPhoto!)
+            if let selectedPhoto = viewModel.selectedPhoto {
+                Image(uiImage: selectedPhoto)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: 300, maxHeight: 400)
+                
+                Button(action: {
+                    viewModel.saveImageToPhotos(selectedPhoto)
+                }) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.down")
+                        Text("Save to Photos")
+                    }
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(10)
+                }
+                .padding(.top, 20)
             }
         }
-        .onChange(of: viewModel.photosPickerItem) {_, _ in
+        .onChange(of: viewModel.photosPickerItem) { _, _ in
             Task {
                 await viewModel.loadAndFilterPhoto()
             }
+        }
+        .alert("Save Photo", isPresented: $viewModel.showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text(viewModel.saveMessage)
         }
     }
 }
@@ -37,4 +57,3 @@ struct PolaroidPhotoView: View {
 #Preview {
     PolaroidPhotoView()
 }
-

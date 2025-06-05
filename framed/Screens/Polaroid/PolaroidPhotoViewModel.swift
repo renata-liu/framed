@@ -10,6 +10,8 @@ import PhotosUI
 final class PolaroidPhotoViewModel: ObservableObject {
     @Published var selectedPhoto: UIImage?
     @Published var photosPickerItem: PhotosPickerItem?
+    @Published var showingSaveAlert = false
+    @Published var saveMessage = ""
     
     @MainActor
     func loadAndFilterPhoto() async {
@@ -80,6 +82,41 @@ final class PolaroidPhotoViewModel: ObservableObject {
         colorMatrix.biasVector = CIVector(x: 0.02, y: 0.01, z: -0.01, w: 0.0)
         
         return colorMatrix.outputImage ?? image
+    }
+    
+    func saveImageToPhotos(_ image: UIImage) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            DispatchQueue.main.async {
+                switch status {
+                case .authorized, .limited:
+                    self.performSave(image)
+                case .denied, .restricted:
+                    self.saveMessage = "Photo library access denied. Please enable it in Settings."
+                    self.showingSaveAlert = true
+                case .notDetermined:
+                    self.saveMessage = "Photo library access not determined."
+                    self.showingSaveAlert = true
+                @unknown default:
+                    self.saveMessage = "Photo library access error."
+                    self.showingSaveAlert = true
+                }
+            }
+        }
+    }
+    
+    func performSave(_ image: UIImage) {
+        PHPhotoLibrary.shared().performChanges {
+            PHAssetCreationRequest.creationRequestForAsset(from: image)
+        } completionHandler: { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    self.saveMessage = "Photo saved to your photo library!"
+                } else {
+                    self.saveMessage = "Failed to save photo: \(error?.localizedDescription ?? "Unknown error")"
+                }
+                self.showingSaveAlert = true
+            }
+        }
     }
 }
 

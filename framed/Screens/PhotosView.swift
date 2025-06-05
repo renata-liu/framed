@@ -62,7 +62,7 @@ struct PhotosView: View {
         
         let context = CIContext()
         var outputImage = ciImage
-        outputImage = applyPolaroidFilter(to: ciImage)
+        outputImage = applyPhotoStripFilter(to: ciImage)
         
         guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
             return image
@@ -71,8 +71,8 @@ struct PhotosView: View {
         return UIImage(cgImage: cgImage)
     }
     
-    // Individual filter implementations
-    private func applyPolaroidFilter(to image: CIImage) -> CIImage {
+    private func applyPhotoStripFilter(to image: CIImage) -> CIImage {
+        // Step 1: Crop to square center
         let sourceExtent = image.extent
         let size = min(sourceExtent.width, sourceExtent.height)
         let cropRect = CGRect(
@@ -82,47 +82,28 @@ struct PhotosView: View {
             height: size
         )
         let croppedImage = image.cropped(to: cropRect)
-        
-        let temperatureFilter = CIFilter.temperatureAndTint()
-        temperatureFilter.inputImage = croppedImage
-        temperatureFilter.neutral = CIVector(x: 6500, y: 0)
-        temperatureFilter.targetNeutral = CIVector(x: 7200, y: 100) // Warmer with yellow tint
-        
-        // Step 3: Reduce contrast and increase brightness (Instax has a softer, overexposed look)
+
+        let noir = CIFilter.photoEffectNoir()
+        noir.inputImage = croppedImage
+
         let colorControls = CIFilter.colorControls()
-        colorControls.inputImage = temperatureFilter.outputImage
-        colorControls.contrast = 0.85  // Lower contrast
-        colorControls.brightness = 0.15 // Slightly overexposed
-        colorControls.saturation = 0.9  // Slightly desaturated
-        
-        // Step 4: Add subtle vignette (Instax has slight edge darkening)
+        colorControls.inputImage = noir.outputImage
+        colorControls.contrast = 0.9
+        colorControls.brightness = 0.0
+        colorControls.saturation = 0.5
+
         let vignette = CIFilter.vignette()
         vignette.inputImage = colorControls.outputImage
-        vignette.intensity = 0.3 // Subtle vignette
-        vignette.radius = 1.5
-        
-        // Step 5: Add film grain/noise for authentic look
-        let noiseReduction = CIFilter.noiseReduction()
-        noiseReduction.inputImage = vignette.outputImage
-        noiseReduction.noiseLevel = 0.02
-        noiseReduction.sharpness = 0.4
-        
-        // Step 6: Slightly blur for that soft Instax look
-        let gaussianBlur = CIFilter.gaussianBlur()
-        gaussianBlur.inputImage = noiseReduction.outputImage
-        gaussianBlur.radius = 0.4
-        
-        // Step 7: Add a subtle color overlay to mimic the Instax color science
-        let colorMatrix = CIFilter.colorMatrix()
-        colorMatrix.inputImage = gaussianBlur.outputImage
-        colorMatrix.rVector = CIVector(x: 1.05, y: 0.02, z: 0.0, w: 0.0)   // Boost reds slightly
-        colorMatrix.gVector = CIVector(x: 0.0, y: 1.0, z: 0.05, w: 0.0)    // Slight green-yellow shift
-        colorMatrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.95, w: 0.0)    // Reduce blues slightly
-        colorMatrix.aVector = CIVector(x: 0.0, y: 0.0, z: 0.0, w: 1.0)     // Keep alpha
-        colorMatrix.biasVector = CIVector(x: 0.02, y: 0.01, z: -0.01, w: 0.0) // Warm bias
-        
-        return colorMatrix.outputImage ?? image
+        vignette.intensity = 0.7
+        vignette.radius = Float(size / 1.5)
+
+        let blur = CIFilter.gaussianBlur()
+        blur.inputImage = vignette.outputImage
+        blur.radius = 0.3
+
+        return blur.outputImage ?? image
     }
+
 }
 
 #Preview {
